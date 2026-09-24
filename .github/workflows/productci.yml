@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  build-and-check:
-    name: Build and Check Product API
+  build-and-test:
+    name: Build and Test Product API
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
         run: npm ci
 
       - name: Check JavaScript syntax
-        run: find src -name "*.js" -print0 | xargs -0 -n1 node --check
+        run: find src tests -name "*.js" -print0 | xargs -0 -n1 node --check
 
       - name: Create CI environment file
         run: cp .env.example .env
@@ -39,5 +39,45 @@ jobs:
       - name: Validate Docker Compose
         run: docker compose config --quiet
 
-      - name: Build Docker image
-        run: docker build -t product-api:ci .
+      - name: Create Docker resources
+        run: |
+          docker network create product-network
+          docker volume create nammongodb_data
+
+      - name: Build and start deployment
+        run: docker compose up -d --build
+
+      - name: Wait for Product API
+        run: |
+          ready=false
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/health; then
+              ready=true
+              break
+            fi
+
+            echo "Waiting for Product API: attempt ${attempt}/30"
+            sleep 2
+          done
+
+          if [ "$ready" != "true" ]; then
+            echo "Product API did not become healthy"
+            exit 1
+          fi
+
+      - name: Run CRUD integration tests
+        env:
+          API_URL: http://127.0.0.1:3000
+        run: npm test
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop deployment
+        if: always()
+        run: |
+          docker compose down
+          docker volume rm nammongodb_data || true
+          docker network rm product-network || true
