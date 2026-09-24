@@ -1,0 +1,49 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: nammongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - nammongodb_data:/data/db
+    networks:
+      - product-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--eval",
+          "db.adminCommand({ ping: 1 }).ok",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  product-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: product-api:1.0
+    container_name: product-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - product-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  nammongodb_data:
+    external: true
+
+networks:
+  product-network:
+    external: true
