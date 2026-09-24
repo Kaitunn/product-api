@@ -16,6 +16,16 @@ app.get("/", (req, res) => {
     message: "Product API đang hoạt động",
   });
 });
+app.get("/health", (req, res) => {
+  const isMongoConnected = mongoose.connection.readyState === 1;
+
+  if (!isMongoConnected) {
+    return res.status(503).json({
+      status: "unhealthy",
+      api: "running",
+      mongodb: "disconnected",
+    });
+  }
 
 // Đăng ký các API Product
 app.use("/api/products", productRoutes);
@@ -24,6 +34,14 @@ app.use("/api/products", productRoutes);
 app.use((req, res) => {
   res.status(404).json({
     message: "Không tìm thấy API",
+  });
+});
+
+
+  res.status(200).json({
+    status: "healthy",
+    api: "running",
+    mongodb: "connected",
   });
 });
 
