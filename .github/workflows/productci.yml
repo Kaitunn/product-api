@@ -47,35 +47,40 @@ jobs:
       - name: Build and start deployment
         run: docker compose up -d --build
 
-      - name: Wait for Product API healthcheck
+      - name: Wait for container healthchecks
         run: |
           ready=false
 
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/health; then
+            mongodb_status=$(docker inspect \
+              --format='{{.State.Health.Status}}' \
+              nammongodb)
+
+            api_status=$(docker inspect \
+              --format='{{.State.Health.Status}}' \
+              product-api)
+
+            echo "Attempt ${attempt}/30"
+            echo "MongoDB health: ${mongodb_status}"
+            echo "Product API health: ${api_status}"
+
+            if [ "$mongodb_status" = "healthy" ] && \
+               [ "$api_status" = "healthy" ]; then
               ready=true
               break
             fi
 
-            echo "Waiting for Product API: attempt ${attempt}/30"
             sleep 2
           done
 
           if [ "$ready" != "true" ]; then
-            echo "Product API did not become healthy"
+            echo "Containers did not become healthy"
+            docker compose ps
             exit 1
           fi
 
-      - name: Verify container healthchecks
-        run: |
-          mongodb_status=$(docker inspect --format='{{.State.Health.Status}}' nammongodb)
-          api_status=$(docker inspect --format='{{.State.Health.Status}}' product-api)
-
-          echo "MongoDB health: ${mongodb_status}"
-          echo "Product API health: ${api_status}"
-
-          test "$mongodb_status" = "healthy"
-          test "$api_status" = "healthy"
+          curl --fail --silent --show-error \
+            http://127.0.0.1:3000/health
 
       - name: Run CRUD integration tests
         env:
@@ -98,9 +103,7 @@ jobs:
     name: CD - Publish Image to Docker Hub
     needs:
       - build-and-test
-
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     runs-on: ubuntu-latest
 
     steps:
