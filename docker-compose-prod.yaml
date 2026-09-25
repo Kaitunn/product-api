@@ -1,0 +1,61 @@
+name: product-api-prod
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: nammongodb-prod
+    restart: unless-stopped
+    volumes:
+      - mongodb_prod_data:/data/db
+    networks:
+      - product-prod-network
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - db.adminCommand('ping').ok
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  product-api:
+    image: kaitunn/product-api:latest
+    container_name: product-api-prod
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      MONGO_URI: mongodb://mongodb:27017/productdb
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    networks:
+      - product-prod-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/health')
+          .then(response => process.exit(response.ok ? 0 : 1))
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  mongodb_prod_data:
+    name: nammongodb_prod_data
+
+networks:
+  product-prod-network:
+    name: product-prod-network
+    driver: bridge

@@ -7,15 +7,17 @@ const productRoutes = require("./routes/productRoutes");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Cho phép Express đọc dữ liệu JSON từ request
+// Cho phép Express đọc dữ liệu JSON
 app.use(express.json());
 
-// API kiểm tra server
+// Kiểm tra API
 app.get("/", (req, res) => {
   res.status(200).json({
     message: "Product API đang hoạt động",
   });
 });
+
+// Healthcheck API và MongoDB
 app.get("/health", (req, res) => {
   const isMongoConnected = mongoose.connection.readyState === 1;
 
@@ -27,21 +29,20 @@ app.get("/health", (req, res) => {
     });
   }
 
-// Đăng ký các API Product
+  return res.status(200).json({
+    status: "healthy",
+    api: "running",
+    mongodb: "connected",
+  });
+});
+
+// Đăng ký Product API
 app.use("/api/products", productRoutes);
 
 // Xử lý URL không tồn tại
 app.use((req, res) => {
   res.status(404).json({
     message: "Không tìm thấy API",
-  });
-});
-
-
-  res.status(200).json({
-    status: "healthy",
-    api: "running",
-    mongodb: "connected",
   });
 });
 
@@ -52,8 +53,8 @@ async function startServer() {
 
     console.log("Kết nối MongoDB thành công");
 
-    app.listen(PORT, () => {
-      console.log(`Server đang chạy tại http://localhost:${PORT}`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server đang chạy trên cổng ${PORT}`);
     });
   } catch (error) {
     console.error("Kết nối MongoDB thất bại:", error.message);
