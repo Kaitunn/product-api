@@ -138,3 +138,99 @@ jobs:
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy-local:
+    name: Deploy - Local Docker Engine
+    needs:
+      - publish-image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Pull latest production image
+        shell: powershell
+        run: docker compose -f docker-compose-prod.yaml pull
+
+      - name: Deploy to local Docker Engine
+        shell: powershell
+        run: |
+          docker compose -f docker-compose-prod.yaml up -d --remove-orphans
+
+      - name: Wait for production healthchecks
+        shell: powershell
+        run: |
+          $ready = $false
+
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            $mongodbStatus = (
+              docker inspect `
+                --format="{{.State.Health.Status}}" `
+                nammongodb-prod
+            ).Trim()
+
+            $apiStatus = (
+              docker inspect `
+                --format="{{.State.Health.Status}}" `
+                product-api-prod
+            ).Trim()
+
+            Write-Host "Attempt ${attempt}/30"
+            Write-Host "MongoDB health: ${mongodbStatus}"
+            Write-Host "Product API health: ${apiStatus}"
+
+            if (
+              $mongodbStatus -eq "healthy" -and
+              $apiStatus -eq "healthy"
+            ) {
+              $ready = $true
+              break
+            }
+
+            Start-Sleep -Seconds 2
+          }
+
+          if (-not $ready) {
+            docker compose -f docker-compose-prod.yaml ps
+            docker compose -f docker-compose-prod.yaml logs
+            throw "Production containers did not become healthy"
+          }
+
+      - name: Verify production health endpoint
+        shell: powershell
+        run: |
+          $response = Invoke-RestMethod `
+            -Uri "http://127.0.0.1:3000/health"
+
+          $response | ConvertTo-Json
+
+          if ($response.status -ne "healthy") {
+            throw "Product API health endpoint is unhealthy"
+          }
+
+      - name: Run production CRUD tests
+        env:
+          API_URL: http://127.0.0.1:3000
+        run: npm test
+
+      - name: Show production status
+        if: always()
+        shell: powershell
+        run: docker compose -f docker-compose-prod.yaml ps
