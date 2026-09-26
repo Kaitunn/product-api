@@ -44,7 +44,7 @@ jobs:
           docker network create product-network
           docker volume create nammongodb_data
 
-      - name: Build and start deployment
+      - name: Build and start CI deployment
         run: docker compose up -d --build
 
       - name: Wait for CI container healthchecks
@@ -161,6 +161,12 @@ jobs:
         with:
           node-version: "22"
           cache: npm
+
+      - name: Add Docker CLI to PATH
+        shell: cmd
+        run: |
+          echo C:\Program Files\Docker\Docker\resources\bin>>"%GITHUB_PATH%"
+          "C:\Program Files\Docker\Docker\resources\bin\docker.exe" version
 
       - name: Install test dependencies
         shell: cmd
