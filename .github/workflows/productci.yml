@@ -47,7 +47,7 @@ jobs:
       - name: Build and start deployment
         run: docker compose up -d --build
 
-      - name: Wait for container healthchecks
+      - name: Wait for CI container healthchecks
         run: |
           ready=false
 
@@ -74,7 +74,7 @@ jobs:
           done
 
           if [ "$ready" != "true" ]; then
-            echo "Containers did not become healthy"
+            echo "CI containers did not become healthy"
             docker compose ps
             exit 1
           fi
@@ -87,7 +87,7 @@ jobs:
           API_URL: http://127.0.0.1:3000
         run: npm test
 
-      - name: Show container logs on failure
+      - name: Show CI container logs on failure
         if: failure()
         continue-on-error: true
         run: docker compose logs
@@ -163,19 +163,21 @@ jobs:
           cache: npm
 
       - name: Install test dependencies
+        shell: cmd
         run: npm ci
 
       - name: Pull latest production image
-        shell: powershell
-        run: docker compose -f docker-compose-prod.yaml pull
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          docker compose -f docker-compose-prod.yaml pull
 
       - name: Deploy to local Docker Engine
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
           docker compose -f docker-compose-prod.yaml up -d --remove-orphans
 
       - name: Wait for production healthchecks
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
           $ready = $false
 
@@ -214,7 +216,7 @@ jobs:
           }
 
       - name: Verify production health endpoint
-        shell: powershell
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
           $response = Invoke-RestMethod `
             -Uri "http://127.0.0.1:3000/health"
@@ -226,11 +228,13 @@ jobs:
           }
 
       - name: Run production CRUD tests
+        shell: cmd
         env:
           API_URL: http://127.0.0.1:3000
         run: npm test
 
       - name: Show production status
         if: always()
-        shell: powershell
-        run: docker compose -f docker-compose-prod.yaml ps
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          docker compose -f docker-compose-prod.yaml ps
