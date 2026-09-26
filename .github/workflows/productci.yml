@@ -165,8 +165,8 @@ jobs:
       - name: Add Docker CLI to PATH
         shell: cmd
         run: |
-          echo C:\Program Files\Docker\Docker\resources\bin>>"%GITHUB_PATH%"
-          "C:\Program Files\Docker\Docker\resources\bin\docker.exe" version
+          echo C:\Users\Dang Tuan Khai\AppData\Local\Programs\DockerDesktop\resources\bin>>"%GITHUB_PATH%"
+          "C:\Users\Dang Tuan Khai\AppData\Local\Programs\DockerDesktop\resources\bin\docker.exe" version
 
       - name: Install test dependencies
         shell: cmd
